@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Tao20060602 的 SGLang 架构学习作品：探索昇腾适配边界、模块交互和优化的连锁影响。"
+    />
+    <title>SGLang × Ascend Explorer · Tao20060602</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="vendor/elk.bundled.js" defer></script>
+    <script type="module" src="src/app.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到架构图</a>
+    <header class="site-header">
+      <div>
+        <div class="eyebrow">A SYSTEMS LEARNING NOTEBOOK</div>
+        <h1>SGLang <span>×</span> Ascend</h1>
+      </div>
+      <div class="byline">
+        <a href="https://github.com/Tao20060602">Tao20060602 的学习作品</a
+        ><span>上游版本 <code>66cac6b79c</code> · 可持续更新</span>
+      </div>
+    </header>
+    <div class="workspace">
+      <aside class="navigation" aria-label="模块目录">
+        <div class="section-label">ARCHITECTURE / 架构目录</div>
+        <nav id="tree"></nav>
+        <div class="nav-foot">
+          SRT / LLM 核心路径<br />逻辑交互图，不是通用调用时序图。<br /><a
+            href="docs/MAINTAINING.md"
+            >如何更新这份作品 ↗</a
+          >
+        </div>
+      </aside>
+      <main id="main">
+        <section class="intro">
+          <div class="section-label">ADAPTATION & OPTIMIZATION</div>
+          <h2>看清接口，判断改动的边界。</h2>
+          <p>
+            在模型语义与服务目标不变的前提下，区分通常复用的逻辑、需要核对的契约，以及直接适配的实现。
+          </p>
+          <div class="status-legend">
+            <span class="status S">S 保持 / 通常复用</span
+            ><span class="status C">C 核对 / 条件变化</span
+            ><span class="status A">A 直接适配 / 调优</span>
+          </div>
+        </section>
+        <section class="scenario-panel" aria-label="优化案例与条件">
+          <label
+            >案例<select id="scenario">
+              <option value="overview">昇腾接入全景</option>
+              <option value="attention">例 1 · 切换 Attention 后端</option>
+              <option value="kv">例 2 · 改变 KV 布局或页大小</option>
+              <option value="graph">例 3 · 启用 NPU 图执行</option>
+              <option value="quant">例 4 · 接入 ModelSlim 权重量化</option>
+            </select></label
+          >
+          <div id="attention-options" hidden>
+            <label
+              >接口变化范围<select id="variant">
+                <option value="same">输入输出、KV 布局和页大小相同</option>
+                <option value="output">仅输出排列不同：HTD → THD</option>
+                <option value="layout">KV 布局或 page_size 也改变</option>
+              </select></label
+            ><label class="checkbox"
+              ><input id="with-graph" type="checkbox" />同时使用图执行</label
+            >
+          </div>
+          <div id="case" hidden>
+            <div class="case-heading">
+              <strong id="case-title"></strong>
+              <div class="step-controls">
+                <button id="prev" type="button">上一步</button
+                ><span id="step-count"></span
+                ><button id="next" type="button">下一步</button>
+              </div>
+            </div>
+            <div id="steps" aria-label="影响传播步骤"></div>
+            <p id="step-detail" aria-live="polite"></p>
+          </div>
+        </section>
+        <nav id="breadcrumbs" aria-label="当前模块层级"></nav>
+        <section class="diagram-section" aria-labelledby="scope-title">
+          <div class="diagram-toolbar">
+            <div>
+              <h2 id="scope-title">引擎全景</h2>
+              <div class="edge-legend">
+                <span>实线：调用 / 数据</span><span>虚线：配置 / 约束</span
+                ><span>双箭头：双方交换</span>
+              </div>
+            </div>
+            <div class="zoom">
+              <button id="zoom-out" type="button" aria-label="缩小架构图">
+                −</button
+              ><output id="zoom-label">100%</output
+              ><button id="zoom-in" type="button" aria-label="放大架构图">
+                ＋</button
+              ><button id="fit" type="button">适合窗口</button>
+            </div>
+          </div>
+          <div id="diagram" aria-busy="true">
+            <div id="loading" role="status">正在为节点和独立端口排线…</div>
+            <svg
+              id="graph"
+              role="img"
+              aria-label="可展开的 SGLang 模块交互图"
+            ></svg>
+          </div>
+          <div class="diagram-note">
+            点击模块逐层展开；点击连线编号或下方关系项查看接口。每条线连接独立端口，箭头尖端标明目标；交叉不代表连接。
+          </div>
+        </section>
+        <section class="relationship-section">
+          <div class="section-heading">
+            <h2>本层的交互关系</h2>
+            <span id="relation-count"></span>
+          </div>
+          <div id="relationships"></div>
+        </section>
+      </main>
+      <aside
+        id="inspector"
+        aria-label="模块与接口说明"
+        aria-live="polite"
+      ></aside>
+    </div>
+    <footer>
+      个人学习与工程分析作品，非 SGLang
+      或华为官方文档。案例是带条件的影响推演，不是硬件性能实测。<a
+        href="docs/SOURCES.md"
+        >来源与范围</a
+      >
+      · <a href="THIRD_PARTY_NOTICES.md">第三方说明</a>
+    </footer>
+  </body>
+</html>
