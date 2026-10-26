@@ -2,6 +2,8 @@
 
 **作者与维护者：[Tao20060602](https://github.com/Tao20060602)**
 
+**[在线浏览](https://tao20060602.github.io/sglang-ascend-explorer/)** · **[完整架构图](docs/architecture.png)**
+
 这是我的推理引擎学习作品：通过可展开的架构图，理解 SGLang 中昇腾适配的边界，以及优化带来的连锁影响。我会结合自己的源码阅读和实践继续修订。
 
 ![架构预览](docs/preview.png)
