@@ -140,11 +140,14 @@ h3 {
 .navigation {
   padding: 25px 16px;
   border-right: 1px solid var(--border);
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow: auto;
 }
 .navigation nav {
   margin-top: 16px;
-  position: sticky;
-  top: 18px;
 }
 .tree-button {
   display: flex;
@@ -639,6 +642,9 @@ footer a {
     display: block;
   }
   .navigation {
+    position: static;
+    max-height: none;
+    overflow: visible;
     padding: 12px 18px;
     border-right: 0;
     border-bottom: 1px solid var(--border);
@@ -716,5 +722,76 @@ footer a {
   }
   .module-node {
     transition: background 0.15s;
+  }
+}
+
+/* Model evidence and the intent-specific review path share the existing diagram. */
+.model-controls {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.control-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+#model-summary {
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+#model-summary p {
+  font-size: 12px;
+  margin-top: 6px;
+}
+.model-coverage {
+  color: var(--muted);
+}
+.model-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+#kv-options {
+  margin-top: 12px;
+}
+#impact-panel {
+  margin-top: 20px;
+}
+#impact-chain {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+#impact-chain li {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface);
+}
+#impact-chain button {
+  text-align: left;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+}
+#impact-chain p {
+  font-size: 12px;
+  margin-top: 5px;
+  color: var(--muted);
+}
+@media (max-width: 650px) {
+  #impact-chain {
+    grid-template-columns: 1fr;
   }
 }

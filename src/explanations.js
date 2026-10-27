@@ -63,7 +63,7 @@ export const EXPLANATIONS = {
     outputs: ["隐藏状态、logits 及后续采样所需结果。"],
     stable: ["模型层结构、残差数学关系、参数含义与因果语义。"],
     checks: [
-      "Qwen2 是示例，不代表全部模型有相同 Attention / MLP 路径。",
+      "通用接口示例不代表全部模型有相同 Attention / MLP 路径；具体结构见模型视角。",
       "实现可以改变；head、token 与输出投影列顺序必须正确。",
     ],
   },

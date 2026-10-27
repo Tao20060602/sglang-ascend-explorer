@@ -221,7 +221,7 @@ export const RELATIONS = {
       "projections",
       "层结构",
       "模型结构组织 QKV 和输出投影等层。",
-      "以 Qwen2 为代表，其他模型需检查自身实现。",
+      "这是通用接口示例；具体模型的分支需切换模型视角核查。",
     ),
     r(
       "projections",

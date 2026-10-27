@@ -49,11 +49,18 @@
           </div>
         </section>
         <section class="scenario-panel" aria-label="优化案例与条件">
+          <div class="model-controls">
+            <label>模型视角<select id="model-select"></select></label>
+            <span class="control-hint"
+              >固定版本架构分析 · 默认设备为昇腾 · 切换视角不会运行模型</span
+            >
+          </div>
+          <div id="model-summary" aria-live="polite"></div>
           <label
             >案例<select id="scenario">
               <option value="overview">昇腾接入全景</option>
               <option value="attention">例 1 · 切换 Attention 后端</option>
-              <option value="kv">例 2 · 改变 KV 布局或页大小</option>
+              <option value="kv">例 2 · 优化模型缓存与状态管理</option>
               <option value="graph">例 3 · 启用 NPU 图执行</option>
               <option value="quant">例 4 · 接入 ModelSlim 权重量化</option>
             </select></label
@@ -69,6 +76,16 @@
               ><input id="with-graph" type="checkbox" />同时使用图执行</label
             >
           </div>
+          <div id="kv-options" hidden>
+            <label>这次具体改变什么？<select id="kv-change"></select></label>
+          </div>
+          <section id="impact-panel" hidden aria-labelledby="impact-title">
+            <h3 id="impact-title">从改动出发，沿契约检查波及面</h3>
+            <p class="control-hint">
+              下列是核查路径，不是固定调用时序。点击各项进入对应模块；颜色表示本次假设下的职责。
+            </p>
+            <ol id="impact-chain"></ol>
+          </section>
           <div id="case" hidden>
             <div class="case-heading">
               <strong id="case-title"></strong>

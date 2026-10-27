@@ -44,11 +44,85 @@ const ready = async () => {
   await page.locator("[data-module-id] button").first().waitFor();
 };
 const open = async (scope = "root") => {
-  await page.goto(base + "/#scope=" + scope);
+  await page.goto(base + "/#model=generic&scope=" + scope);
   await ready();
 };
 const module = (title) =>
   page.locator("#graph").getByRole("button", { name: new RegExp("^" + title) });
+
+test("model selection changes real state topology and KV optimization cascades", async () => {
+  await page.goto(base + "/#model=deepseek&scenario=kv&kv=layout&scope=memory");
+  await ready();
+  assert.equal(await page.locator("#model-select").inputValue(), "deepseek");
+  await module("模型缓存与状态池").click();
+  await ready();
+  await module("共享全局 KV").click();
+  await ready();
+  assert.match(await page.locator("#inspector").innerText(), /source|共享/);
+  assert.match(
+    await page.locator("#inspector a.source-link").first().getAttribute("href"),
+    /deepseek_v4/,
+  );
+  await page.locator("#model-select").selectOption("kimi");
+  await ready();
+  assert.equal(await page.locator("#scope-title").innerText(), "引擎全景");
+  await module("KV Cache 与内存").click();
+  await ready();
+  await module("模型缓存与状态池").click();
+  await ready();
+  assert.equal(await module("KDA 递推与卷积状态").count(), 1);
+  assert.equal(await module("Gated MLA 潜变量缓存").count(), 1);
+  await page.locator("#kv-change").selectOption("precision");
+  await ready();
+  assert.match(
+    await module("KDA 递推与卷积状态").getAttribute("aria-label"),
+    /S 保持/,
+  );
+  await module("KDA 递推与卷积状态").click();
+  await ready();
+  assert.match(await page.locator("#inspector").innerText(), /递推|累加/);
+  await page.locator("#kv-change").selectOption("reuse");
+  await ready();
+  assert.match(
+    await module("KDA 递推与卷积状态").getAttribute("aria-label"),
+    /A 直接/,
+  );
+  await page
+    .locator("#impact-chain")
+    .getByRole("button", { name: /计算与状态接口/ })
+    .click();
+  await ready();
+  await page.locator("#kv-change").selectOption("precision");
+  await ready();
+  assert.match(
+    await module("Gated MLA Attention").getAttribute("aria-label"),
+    /A 直接/,
+  );
+  assert.match(
+    await module("KDA 递推 Attention").getAttribute("aria-label"),
+    /C 核对/,
+  );
+  await page.locator("#model-select").selectOption("glm");
+  await ready();
+  await page.locator("#kv-change").selectOption("capacity");
+  await ready();
+  await module("KV Cache 与内存").click();
+  await ready();
+  await module("模型缓存与状态池").click();
+  await ready();
+  assert.equal(await module("MLA 潜变量缓存").count(), 1);
+  assert.equal(await module("DSA 索引键缓存").count(), 1);
+  await module("显存预算 / 容量").click();
+  await ready();
+  assert.match(await page.locator("#inspector").innerText(), /预算/);
+  const url = page.url();
+  await page.reload();
+  await ready();
+  assert.equal(page.url(), url);
+  assert.equal(await page.locator("#model-select").inputValue(), "glm");
+  assert.equal(await page.locator("#kv-change").inputValue(), "capacity");
+  assert.deepEqual(errors, []);
+});
 
 test("reader drills into real modules, selects an interface and follows pinned evidence", async () => {
   await open();
@@ -232,26 +306,37 @@ async function geometry() {
 
 test("each hierarchy routes independent edges around nodes with readable labels and correct targets", async () => {
   const manifest = [];
-  for (const scope of [
-    "root",
-    "frontend",
-    "scheduler",
-    "executor",
-    "model",
-    "attention",
-    "decode",
-    "paged",
-    "memory",
-    "kv-pool",
-    "ops",
-    "graph",
-    "comm",
-    "platform",
-    "runtime",
-  ]) {
-    await open(scope);
+  const views = [
+    ...[
+      "root",
+      "frontend",
+      "scheduler",
+      "executor",
+      "model",
+      "attention",
+      "decode",
+      "paged",
+      "memory",
+      "kv-pool",
+      "ops",
+      "graph",
+      "comm",
+      "platform",
+      "runtime",
+    ].map((scope) => ({ model: "generic", scope })),
+    ...["deepseek", "glm", "kimi"].flatMap((model) =>
+      ["root", "model", "attention", "memory", "kv-pool", "speculation"].map(
+        (scope) => ({ model, scope }),
+      ),
+    ),
+  ];
+  for (const { model, scope } of views) {
+    await page.goto(
+      base + "/#model=" + model + "&scope=" + scope + "&scenario=kv&kv=layout",
+    );
+    await ready();
     const result = await geometry();
-    manifest.push({ scope, ...result });
+    manifest.push({ model, scope, ...result });
     assert.deepEqual(result.through, [], scope + " line crosses a node");
     assert.deepEqual(
       result.overlaps,
@@ -273,6 +358,41 @@ test("each hierarchy routes independent edges around nodes with readable labels 
     new URL("../test-results/layout-manifest.json", import.meta.url),
     JSON.stringify(manifest, null, 2) + "\n",
   );
+  assert.deepEqual(errors, []);
+});
+
+test("model URLs reject unrelated paths and review paths open the real module", async () => {
+  await page.goto(base + "/#model=kimi&scope=paged&scenario=kv&kv=capacity");
+  await ready();
+  assert.equal(await page.locator("#scope-title").innerText(), "引擎全景");
+  assert.match(
+    await module("Attention 后端").getAttribute("aria-label"),
+    /S 保持/,
+  );
+  assert.match(
+    await module("KV Cache 与内存").getAttribute("aria-label"),
+    /A 直接/,
+  );
+  await page
+    .locator("#impact-chain")
+    .getByRole("button", { name: /模型状态与所有权/ })
+    .click();
+  await ready();
+  assert.match(await page.locator("#scope-title").innerText(), /KV Cache/);
+  await module("模型缓存与状态池").click();
+  await ready();
+  await module("KDA 递推与卷积状态").click();
+  assert.match(
+    await page.locator("#inspector").innerText(),
+    /并发请求|state 槽/,
+  );
+  await page.goto(
+    base + "/#model=invalid&scope=not-a-module&scenario=kv&kv=invalid",
+  );
+  await ready();
+  assert.equal(await page.locator("#model-select").inputValue(), "deepseek");
+  assert.equal(await page.locator("#kv-change").inputValue(), "layout");
+  assert.equal(await page.locator("#scope-title").innerText(), "引擎全景");
   assert.deepEqual(errors, []);
 });
 
@@ -305,6 +425,50 @@ test("desktop, dark mode and mobile keep usable navigation, zoom and explanatory
   assert.match(await page.locator("#scope-title").innerText(), /Decode/);
   await page.screenshot({
     path: new URL("../test-results/mobile.png", import.meta.url).pathname,
+    fullPage: true,
+  });
+  assert.deepEqual(errors, []);
+});
+
+test("model controls, typed state views and impact paths stay readable on desktop and mobile", async () => {
+  await page.setViewportSize({ width: 1550, height: 1100 });
+  await page.goto(
+    base + "/#model=deepseek&scope=kv-pool&scenario=kv&kv=layout",
+  );
+  await ready();
+  await module("共享全局 KV").click();
+  await page.locator("#fit").click();
+  await page.screenshot({
+    path: new URL("../test-results/model-desktop.png", import.meta.url)
+      .pathname,
+    fullPage: true,
+  });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.locator("#model-select").selectOption("kimi");
+  await ready();
+  await module("KV Cache 与内存").click();
+  await ready();
+  await module("模型缓存与状态池").click();
+  await ready();
+  await page.locator("#kv-change").selectOption("reuse");
+  await ready();
+  await page.locator("#fit").click();
+  await page.screenshot({
+    path: new URL("../test-results/model-dark.png", import.meta.url).pathname,
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.locator("#kv-change").selectOption("precision");
+  await ready();
+  const size = await page.evaluate(() => ({
+    visible: document.documentElement.clientWidth,
+    actual: document.documentElement.scrollWidth,
+  }));
+  assert(size.actual <= size.visible + 1, JSON.stringify(size));
+  assert.equal(await page.locator("#model-select").inputValue(), "kimi");
+  await page.locator("#fit").click();
+  await page.screenshot({
+    path: new URL("../test-results/model-mobile.png", import.meta.url).pathname,
     fullPage: true,
   });
   assert.deepEqual(errors, []);

@@ -181,13 +181,13 @@ N(
 N(
   "model-graph",
   "模型结构与数学语义",
-  "Qwen2 / Transformer",
+  "模型结构 / Transformer",
   "S",
   "定义模型层次、残差、Attention 和 MLP 的数学关系。",
   "保持模型语义；特殊模型可能需专用实现。",
   "参数含义、因果关系和层间数据语义保持。",
-  "models/qwen2.py",
-  225,
+  "models/registry.py",
+  null,
 );
 N(
   "projections",
@@ -197,8 +197,8 @@ N(
   "在模型语义中组织 QKV 与 head 拼接输出。",
   "通常保留结构；核对分片、head 顺序与量化实现。",
   "head 语义和输出投影输入列顺序一致。",
-  "models/qwen2.py",
-  225,
+  "layers/linear.py",
+  1075,
 );
 N(
   "radix",
@@ -229,8 +229,8 @@ N(
   "保持模型结构与数学语义，并调用具体层实现。",
   "硬件专用实现放在下面的后端与算子边界。",
   "形状相同仍需确认 head、token、scale 与 mask 语义。",
-  "models/qwen2.py",
-  225,
+  "models/registry.py",
+  null,
   ["model-graph", "projections", "radix", "weight-load"],
 );
 N(

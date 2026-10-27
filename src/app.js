@@ -1,6 +1,12 @@
-import { nodes, scenario, SOURCE_COMMIT } from "./content.js";
-import { ROOT_MODULES, relationsFor } from "./relations.js";
+import { scenario, SOURCE_COMMIT } from "./content.js";
 import { EXPLANATIONS } from "./explanations.js";
+import {
+  MODELS,
+  KV_CHANGES,
+  modelContext,
+  modelScenario,
+  modelSources,
+} from "./models.js";
 
 const $ = (id) => document.getElementById(id);
 const ns = "http://www.w3.org/2000/svg";
@@ -9,15 +15,23 @@ const statusText = {
   C: "C 核对 / 条件变化",
   A: "A 直接适配 / 调优",
 };
-const parent = {};
-for (const n of Object.values(nodes))
-  for (const c of n.children) parent[c] ??= n.id;
+let context, nodes, parent;
 function readLocation() {
   const params = new URLSearchParams(location.hash.slice(1));
   const scenarioName = params.get("scenario"),
     variant = params.get("variant"),
     focus = params.get("scope");
+  const requestedModel = params.get("model");
+  const model = Object.hasOwn(MODELS, requestedModel)
+    ? requestedModel
+    : "deepseek";
+  const activeContext = modelContext(model);
+  const kvChange = Object.hasOwn(KV_CHANGES, params.get("kv"))
+    ? params.get("kv")
+    : "layout";
   return {
+    model,
+    kvChange,
     scenario: ["overview", "attention", "kv", "graph", "quant"].includes(
       scenarioName,
     )
@@ -25,7 +39,11 @@ function readLocation() {
       : "overview",
     variant: ["same", "output", "layout"].includes(variant) ? variant : "same",
     graph: params.get("graph") === "1",
-    focus: nodes[focus]?.children.length ? focus : "root",
+    focus:
+      activeContext.active.has(focus) &&
+      activeContext.nodes[focus].children.length
+        ? focus
+        : "root",
   };
 }
 const state = {
@@ -62,9 +80,11 @@ function button(text, action, cls = "") {
 }
 function save() {
   const p = new URLSearchParams({
+    model: state.model,
     scope: state.focus,
     scenario: state.scenario,
   });
+  if (state.scenario === "kv") p.set("kv", state.kvChange);
   if (state.scenario === "attention") {
     p.set("variant", state.variant);
     if (state.graph) p.set("graph", "1");
@@ -133,10 +153,39 @@ function renderTree() {
       "tree-button" + (state.focus === "root" ? " active" : ""),
     ),
   );
-  ROOT_MODULES.forEach((id) => add(id, tree));
+  context.roots.forEach((id) => add(id, tree));
 }
 
 function renderControls() {
+  $("model-select").value = state.model;
+  $("kv-change").value = state.kvChange;
+  $("kv-options").hidden = state.scenario !== "kv";
+  const summary = $("model-summary");
+  summary.replaceChildren(
+    element("strong", "", context.profile.checkpoint),
+    element("p", "", context.profile.mechanisms),
+    element("p", "model-coverage", context.profile.coverage),
+  );
+  const sources = element("div", "model-sources");
+  for (const link of modelSources(context.profile)) {
+    const a = element("a", "", link.title + " ↗");
+    a.href = link.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    sources.append(a);
+  }
+  summary.append(sources);
+  const effects = $("impact-chain");
+  effects.replaceChildren();
+  $("impact-panel").hidden = !current.effects?.length;
+  for (const [index, effect] of (current.effects || []).entries()) {
+    const item = element("li");
+    item.append(
+      button(`${index + 1} · ${effect.title} ↗`, () => go(effect.node)),
+      element("p", "", effect.text),
+    );
+    effects.append(item);
+  }
   $("scenario").value = state.scenario;
   $("variant").value = state.variant;
   $("with-graph").checked = state.graph;
@@ -234,7 +283,7 @@ function inspect() {
     return;
   }
   const n = nodes[state.selected] || nodes.attention,
-    extra = EXPLANATIONS[n.id] || {};
+    extra = n.details || EXPLANATIONS[n.id] || {};
   host.append(
     element("div", "detail-kicker", "MODULE / 模块说明"),
     element("h2", "inspector-title", n.title),
@@ -558,10 +607,13 @@ function updateZoom() {
 }
 async function render() {
   const version = ++renderVersion;
-  current = scenario(state);
+  context = modelContext(state.model);
+  ({ nodes, parent } = context);
+  current = modelScenario(state, scenario(state), context);
   state.step = Math.min(state.step, Math.max(0, current.steps.length - 1));
-  visible = state.focus === "root" ? ROOT_MODULES : nodes[state.focus].children;
-  edges = relationsFor(state.focus);
+  visible =
+    state.focus === "root" ? context.roots : nodes[state.focus].children;
+  edges = context.relations(state.focus);
   renderTree();
   renderControls();
   renderRelations();
@@ -582,6 +634,32 @@ async function render() {
   }
 }
 
+for (const [id, profile] of Object.entries(MODELS)) {
+  const option = element("option", "", profile.name);
+  option.value = id;
+  $("model-select").append(option);
+}
+for (const [id, label] of Object.entries(KV_CHANGES)) {
+  const option = element("option", "", label);
+  option.value = id;
+  $("kv-change").append(option);
+}
+$("model-select").addEventListener("change", (e) => {
+  state.model = e.target.value;
+  state.focus = "root";
+  state.selected = state.scenario === "kv" ? "memory" : "model";
+  state.edge = null;
+  state.step = 0;
+  render();
+  save();
+});
+$("kv-change").addEventListener("change", (e) => {
+  state.kvChange = e.target.value;
+  state.edge = null;
+  state.step = 0;
+  render();
+  save();
+});
 $("scenario").addEventListener("change", (e) => {
   state.scenario = e.target.value;
   state.focus = "root";

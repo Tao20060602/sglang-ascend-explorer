@@ -39,3 +39,21 @@
 - **TTFT**：首 token 延迟；需要拆分排队、预处理和设备计算。
 - **TPOT**：生成阶段平均每个输出 token 的时间；与端到端测量口径一起记录。
 - **TP / EP / PD**：张量并行、expert 并行、Prefill/Decode 分离；覆盖不同职责。
+
+## 模型视角与缓存波及面（2026-10-27）
+
+模型配置与 SGLang 实现分别固定版本；“模型发布存在”“该提交有分支”“目标昇腾组合能正确且高效运行”是三个不同的证据层次。
+
+| 模型视角                 | 官方固定配置                                                                                                                        | 图中区别                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| DeepSeek V4.1-Flash-1017 | [1bae0e1088](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017/blob/1bae0e1088993b9b82de08f59de5be5a34e42170/config.json) | CED / CSA2、共享全局 KV、本层 SWA、Indexer、压缩状态、DSpark                  |
+| GLM-5.3                  | [ba32f8c19c](https://huggingface.co/zai-org/GLM-5.3/blob/ba32f8c19c8738e2c57c71798c601d477a7bf844/config.json)                      | MLA 主缓存、DSA Index-K、Top-K 共享、NextN；不是 GLM-5.3-Flash                |
+| Kimi K3                  | [f831ab6681](https://huggingface.co/moonshotai/Kimi-K3/blob/f831ab66814297da540d832a5235f8e904f29d06/config.json)                   | KDA 递推/卷积状态与 Gated MLA 历史缓存；AttnRes 是层间残差；该配置 NextN 为 0 |
+
+可复核的关键边界：
+
+- DeepSeek：[共享 KV owner 映射](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/mem_cache/deepseek_v4_memory_pool.py#L1820)。[Ascend Attention](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/hardware_backend/npu/attention/ascend_dsv4_backend.py#L2076) 及 [NPU pool](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/hardware_backend/npu/dsv4/dsv4_memory_pool.py#L484) 仍有 ratio 0/4/128 假设，而该 V4.1 配置包含 1/2。修改白名单不能替代完整适配。
+- GLM：[模型类入口](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/models/glm4_moe.py#L1284)；[Top-K 共享判断](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/configs/model_config.py#L489) 不表示主 KV 共享。[compact Index-K 条件](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/mem_cache/kv_cache_configurator.py#L131) 显式限制 NPU PD / HiCache，是设备布局优化波及传输与 host pool 的具体例子。
+- Kimi：[层类型选择](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/models/kimi_k3.py#L2502)；[Ascend KDA 状态布局](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/hardware_backend/npu/attention/ascend_kda_backend.py#L98) 与 [verify scratch / 回滚](https://github.com/sgl-project/sglang/blob/66cac6b79ccffa13c108297fad8a43ddc49d06f8/python/sglang/srt/hardware_backend/npu/attention/ascend_kda_backend.py#L332) 需独立于 MLA 页表核查。只改 MLA KV 精度不能自动扩展为递推状态量化。
+
+影响路径是根据上述接口和状态依赖推导的 review 范围；不是自动源码依赖分析，也不意味着每个黄色模块都必须改代码。普通 MHA 示例仅在通用接口视角展开，避免冒充三个模型的实际 Attention 路径。
